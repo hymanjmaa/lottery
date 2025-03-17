@@ -18,7 +18,7 @@ i{font-style:normal;}
 .prize_list ul{width:100%;font-size:0;}
 .prize_list li{display:inline-block;font-size:45px;color:#100f0e;text-align: center;width:13%;line-height:100px;font-family:Arial;}
 .start{width: 250px;height: 90px;margin:100px 30px;cursor:pointer;}
-.prize_set{position: absolute;left: 260px;bottom:70px;font-size: 16px;color: #f7f3e8;line-height: 30px;}
+.prize_set{position: absolute;left: 560px;bottom:70px;font-size: 16px;color: #f7f3e8;line-height: 30px;}
 .prize_set li{display: inline-block;margin-left: 20px;}
 .set_grade select,.set_people input, .set_money input{background: #fff;width:110px;height:36px;border:1px solid #8f0000;margin-left: .1rem;color: #000;padding-left:10px;}
 </style>
@@ -36,25 +36,26 @@ i{font-style:normal;}
         </div>
       <p class="start"><img style="display:none;" src="/static/images/prize_start.png" alt=""></p>
       <ul class="prize_set">
-          <li class="set_grade">奖等
+          <li class="set_grade">轮次
             <select id="set_grade">
-              <option>选择奖等</option>
-                {% for prize in prizes %}
-                <option prize_id="{{ prize.id }}" prize_count="{{ prize.prize_count }}" desc="{{ prize.desc }}" sponsor="{{ prize.sponsor }}">第{{ prize.lottery_round }}轮{{  prize.round_level }}等奖</option>
+              <option>选择轮次</option>
+                {% for lc in loop_count %}
+                <option lottery_round="{{ lc }}">第{{ lc }}轮</option>
                 {% endfor %}
             </select>
           </li>
-          <li class="set_people">人数<input type="tel" placeholder="输入中奖人数" id="prizeCount"></li>
+          <!-- <li class="set_people">人数<input type="tel" placeholder="输入中奖人数" id="prizeCount"></li> -->
 <!--          <li class="set_money">金额<input type="tel" placeholder="输入中奖金额" id="prizeMoney"></li>-->
       </ul>
   </div>
 </div>
 
 <!-- 添加弹窗结构 -->
+<!-- 修改弹窗结构的样式 -->
 <div id="prizeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); z-index:1000;">
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background-color:#fff; padding:20px; border-radius:10px; min-width:300px; max-width:80%;">
-    <h3 id="modalTitle" style="text-align:center; margin-bottom:20px;"></h3>
-    <div id="modalContent" style="font-size:24px; text-align:center;"></div>
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background-color:#fff; padding:20px; border-radius:10px; min-width:800px; max-width:90%; max-height:80vh; overflow-y:auto;">
+    <h3 id="modalTitle" style="text-align:center; margin-bottom:20px; font-size:28px;"></h3>
+    <div id="modalContent" style="font-size:18px; text-align:center;"></div>
     <div style="text-align:center; margin-top:20px;">
       <button id="closeModal" style="padding:8px 20px; background:#8f0000; color:#fff; border:none; border-radius:5px; cursor:pointer;">关闭</button>
     </div>
@@ -116,71 +117,66 @@ i{font-style:normal;}
       closeModal();
     });
     
+    $("#prizeModal").click(function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+    
     $(".start").click(function(){
       if($("#prize_btn").val() == 0){        
-        if($("#set_grade").val() == "选择奖等") {
-            alert("请选择奖等");
+        if($("#set_grade").val() == "选择轮次") {
+            alert("请选择轮次");
             return;
-        }else if($("#prizeCount").val() == "") {
-            alert("请输入中奖人数");
-            return;
-        }else if($("#prizeCount").val() > 10) {
-            alert("单次抽奖人数不能超过10人");
-            return;
-        }else{
-          $("#prize_btn").val(1);
-          var num = $("#prizeCount").val();
-          $(this).find("img").attr("src","/static/images/prize_stop.png");
-          
-          // 显示弹窗
-          showModal("抽奖进行中", "");
-          showRandomNum(num);
+        }
+        
+        $("#prize_btn").val(1);
+        $(this).find("img").attr("src","/static/images/prize_stop.png");
+        
+        // 显示弹窗
+        showModal("抽奖进行中", "");
+        showRandomNum(10);
 
-          myNumber = setInterval(function(){
-            showRandomNum(num);
-          }, 30);
-        }        
-      }else{
+        myNumber = setInterval(function(){
+            showRandomNum(10);
+        }, 30);
+    } else {
         $("#prize_btn").val(0);
         clearInterval(myNumber);
         $(this).find("img").attr("src","/static/images/prize_start.png");
 
-        var prize_id = $("#set_grade").find("option:selected").attr("prize_id");
+        var lottery_round = $("#set_grade").find("option:selected").attr("lottery_round");
         $.ajax({
             async: false,
-            ache: false,
+            cache: false,
             type: 'POST',
-            url: "http://127.0.0.1:5000/lottery",
-            data: JSON.stringify({'prize_id': prize_id}),
-            dataType: "text",
+            url: "/lottery",
+            data: JSON.stringify({'lottery_round': lottery_round}),
+            dataType: "json",
             success: function (data) {
-                var value = $.parseJSON(data).result
-                console.log(value)
-                
-                // 获取奖项信息
-                var prizeInfo = "";
-                prizeInfo += "<div style='margin-bottom:15px;'><strong>奖项：</strong>" + $("#set_grade").val() + "</div>";
-                prizeInfo += "<div style='margin-bottom:15px;'><strong>描述：</strong>" + $("#set_grade").find("option:selected").attr("desc") + "</div>";
-                prizeInfo += "<div style='margin-bottom:15px;'><strong>赞助商：</strong>" + $("#set_grade").find("option:selected").attr("sponsor") + "</div>";
-                
-                var modalContent = prizeInfo + "<div style='margin-top:20px; padding-top:15px; border-top:1px solid #ddd;'>";
-                modalContent += "<div style='font-size:28px; font-weight:bold; margin-bottom:15px;'>恭喜以下号码中奖！</div>";
-                
-                $.each(value, function () {
-                    modalContent += '<span style="display:inline-block; margin:5px 10px; font-size:36px; font-weight:bold; color:#8f0000;">' + this + '</span>';
-                })
+                var result = data.result;
+                var modalContent = "<div style='text-align:left;'>";
+                Object.values(result).forEach(function(prize) {
+                    modalContent += "<div style='margin-bottom:20px; padding:10px; border:1px solid #ddd; border-radius:5px;'>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>奖项级别：</strong>" + prize.level + "等奖</div>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>奖项描述：</strong>" + prize.desc + "</div>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>中奖号码：</strong></div>";
+                    modalContent += "<div style='text-align:center;'>";
+                    prize.users.forEach(function(userId) {
+                        modalContent += '<span style="display:inline-block; margin:5px 10px; font-size:36px; font-weight:bold; color:#8f0000;">' + userId + '</span>';
+                    });
+                    modalContent += "</div></div>";
+                });
                 modalContent += "</div>";
                 
-                // 更新弹窗内容显示中奖结果
-                showModal($("#set_grade").val() + " 抽奖结果", modalContent);
+                showModal("第" + lottery_round + "轮抽奖结果", modalContent);
             },
-            error: function (data) {
-                //错误处理
+            error: function () {
                 closeModal();
                 alert("抽奖失败，请重试");
             }
         });
-      }      
+    }      
     });
 
     //回车键控制开始和停止
@@ -192,19 +188,80 @@ i{font-style:normal;}
     });
 
     $("#set_grade").change(function(){
-      // 不再在背景中显示奖项信息
-      $(".prize_grade span").text("开始抽奖");
-      $("#prizeCount").val($(this).find("option:selected").attr("prize_count"));
-      $(".prize_grade i").text("");
-      $(".sponsor_p").text("");
-      
-      // 在弹窗中显示奖项信息
-      var modalContent = "<div style='margin-bottom:10px;'><strong>奖项描述：</strong>" + $(this).find("option:selected").attr("desc") + "</div>";
-      modalContent += "<div style='margin-bottom:10px;'><strong>赞助商：</strong>" + $(this).find("option:selected").attr("sponsor") + "</div>";
-      modalContent += "<div><strong>中奖人数：</strong>" + $(this).find("option:selected").attr("prize_count") + "</div>";
-      
-      showModal($(this).val() + " 奖项信息", modalContent);
+        var lottery_round = $(this).find("option:selected").attr("lottery_round");
+        if (!lottery_round) return;
+        
+        // 从接口获取该轮次的奖项信息
+        $.ajax({
+            async: false,
+            cache: false,
+            type: 'GET',
+            url: "/prizes/" + lottery_round,
+            dataType: "json",
+            success: function (data) {
+                var prizes = data.prizes;
+                if (!prizes || prizes.length === 0) {
+                    alert("未找到该轮次的奖项信息");
+                    return;
+                }
+                
+                // 构建奖项信息展示内容
+                var modalContent = "<div style='text-align:left;'>";
+                prizes.forEach(function(prize) {
+                    modalContent += "<div style='margin-bottom:20px; padding:10px; border:1px solid #ddd; border-radius:5px;'>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>奖项级别：</strong>" + prize.level + "等奖</div>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>奖项描述：</strong>" + prize.desc + "</div>";
+                    modalContent += "<div style='margin-bottom:10px;'><strong>中奖人数：</strong>" + prize.count + "</div>";
+                    modalContent += "<div><strong>赞助商：</strong>" + prize.sponsor + "</div>";
+                    modalContent += "</div>";
+                });
+                modalContent += "</div>";
+                
+                // 保存奖项信息到页面，供抽奖时使用
+                $("#prizeModal").data("prizes", prizes);
+                
+                showModal("第" + lottery_round + "轮抽奖信息", modalContent);
+            },
+            error: function () {
+                alert("获取奖项信息失败，请重试");
+            }
+        });
     });
+
+    // 修改抽奖时显示的信息
+    function showRandomNum(num) {
+        for(var i = 0; i < code.length; i++){
+            arr[i] = i;
+        }
+        arr.sort(function(){
+            return 0.5 - Math.random();
+        });
+    
+        currentNumbers = []; // 清空当前数字
+        for(var i = 0; i < num; i++){
+            var index = arr[i];
+            currentNumbers.push(code[index]); // 保存当前数字
+        }
+        
+        // 获取之前保存的奖项信息
+        var prizes = $("#prizeModal").data("prizes");
+        var prizeInfo = "<div style='text-align:left;'>";
+        prizes.forEach(function(prize) {
+            prizeInfo += "<div style='margin-bottom:15px; padding:10px; border:1px solid #ddd; border-radius:5px;'>";
+            prizeInfo += "<div><strong>奖项级别：</strong>" + prize.level + "等奖</div>";
+            prizeInfo += "<div><strong>描述：</strong>" + prize.desc + "</div>";
+            prizeInfo += "<div><strong>人数：</strong>" + prize.count + "</div>";
+            prizeInfo += "</div>";
+        });
+        prizeInfo += "</div>";
+        
+        var modalContent = prizeInfo + "<div style='margin-top:20px; padding-top:15px; border-top:1px solid #ddd;'>";
+        for(var i = 0; i < currentNumbers.length; i++) {
+            modalContent += '<span style="display:inline-block; margin:5px 10px; font-size:36px; font-weight:bold;">' + currentNumbers[i] + '</span>';
+        }
+        modalContent += "</div>";
+        $("#modalContent").html(modalContent);
+    }
 
 }); 
 </script>

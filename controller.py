@@ -15,7 +15,9 @@ def hello_world():
     prizes = session.query(Prize).all()
     users = session.query(User).filter(User.active == 1).all()
     user_ids = [u.id for u in users]
-    return render_template('index.html', prizes=prizes, user_ids=user_ids)
+    loop_count = list(set([prize.lottery_round for prize in prizes]))
+    loop_count.sort()
+    return render_template('index.html', prizes=prizes, user_ids=user_ids, loop_count=loop_count)
 
 
 @app.route('/res/<int:lround>/', methods=['POST', 'GET'])
@@ -44,39 +46,44 @@ def lottery_result(lround):
 @app.route('/lottery', methods=['POST'])
 def lottery():
     data = json.loads(request.get_data())
-    prize_id = data.get('prize_id')
-    prize_info = session.query(Prize).filter(Prize.id == int(prize_id)).first()
-    if prize_info.is_global:
-        global_user_id = 0
-        if prize_info.lottery_round == 6:
-            global_user_id = 88
-        elif prize_info.lottery_round == 12:
-            global_user_id = 0
-        if global_user_id == 0:
+    lottery_round = data.get('lottery_round')
+    # 获取该轮次所有奖项
+    prizes = session.query(Prize).filter(Prize.lottery_round == lottery_round).order_by(Prize.round_level).all()
+    result = {}
+    
+    for prize in prizes:
+        if prize.is_global:
             users = session.query(User).filter(User.active == 1, User.global_prize_id == 0).all()
         else:
-            users = session.query(User).filter(User.active == 1, User.global_prize_id == 0,
-                                               User.id == global_user_id).all()
-    else:
-        users = session.query(User).filter(User.active == 1, User.single_prize_id == 0).all()
-    user_ids = [u.id for u in users]
-    if len(user_ids) < prize_info.prize_count:
-        fill_users = session.query(User).filter(User.active == 1, User.external_prize_id == 0).all()
-        fill_user_ids = [u.id for u in fill_users]
-        user_ids += random.sample(fill_user_ids, prize_info.prize_count - len(user_ids))
-    lucy_ids = random.sample(user_ids, prize_info.prize_count)
-    if prize_info.is_global:
-        session.query(User).filter(User.id.in_(lucy_ids)).update({User.global_prize_id: prize_id})
-    else:
-        update_users = session.query(User).filter(User.id.in_(lucy_ids)).all()
-        for uu in update_users:
-            if uu.single_prize_id == 0:
-                uu.single_prize_id = prize_id
-            else:
-                uu.external_prize_id = prize_id
+            users = session.query(User).filter(User.active == 1, User.single_prize_id == 0).all()
+            
+        user_ids = [u.id for u in users]
+        if len(user_ids) < prize.prize_count:
+            fill_users = session.query(User).filter(User.active == 1, User.external_prize_id == 0).all()
+            fill_user_ids = [u.id for u in fill_users]
+            user_ids += random.sample(fill_user_ids, prize.prize_count - len(user_ids))
+            
+        lucy_ids = random.sample(user_ids, prize.prize_count)
+        
+        if prize.is_global:
+            session.query(User).filter(User.id.in_(lucy_ids)).update({User.global_prize_id: prize.id})
+        else:
+            update_users = session.query(User).filter(User.id.in_(lucy_ids)).all()
+            for uu in update_users:
+                if uu.single_prize_id == 0:
+                    uu.single_prize_id = prize.id
+                else:
+                    uu.external_prize_id = prize.id
+                    
+        result[prize.id] = {
+            'desc': prize.desc,
+            'level': prize.round_level,
+            'users': lucy_ids
+        }
+        
     session.commit()
     session.close()
-    return json.dumps({"result": lucy_ids})
+    return json.dumps({"result": result})
 
 
 @app.route('/add', methods=['POST'])
@@ -123,3 +130,21 @@ def find_value(id):
 
 def get_all_record():
     return session.query(Record).all()
+
+
+@app.route('/prizes/<int:lottery_round>', methods=['GET'])
+def get_round_prizes(lottery_round):
+    prizes = session.query(Prize).filter(
+        Prize.lottery_round == lottery_round
+    ).order_by(Prize.round_level).all()
+    
+    prize_list = [{
+        'id': p.id,
+        'level': p.round_level,
+        'desc': p.desc,
+        'count': p.prize_count,
+        'sponsor': p.sponsor,
+        'is_global': p.is_global
+    } for p in prizes]
+    
+    return json.dumps({"prizes": prize_list})
